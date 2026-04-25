@@ -66,7 +66,7 @@ If present, the Generator attaches them to Gemini so visual prompts and tone ali
 
 ### Evaluation Criteria Coverage
 
-- **Platform thinking**: We explicitly handle the real Meta constraint that keyword search is noisy and rely on advertiser `search_page_ids` for deterministic scraping. We also expose scrape settings (`META_AD_ACTIVE_STATUS`, lookback, long-running threshold) so the system can trade strictness vs. volume based on business context.
+- **Platform thinking**: I explicitly handle the real Meta constraint that keyword search is noisy and rely on advertiser `search_page_ids` for deterministic scraping. We also expose scrape settings (`META_AD_ACTIVE_STATUS`, lookback, long-running threshold) so the system can trade strictness vs. volume based on business context.
 - **Commercial judgement**: The workflow prioritizes extracting winning hooks/offers/emotional angles from ads with sustained runtime and converts those into testable DITTO variants. Output includes structured hypotheses per concept to connect creative choices to CTR/CVR and downstream LTV-oriented iteration.
 - **Technical depth**: The implementation is production-aware: cyclic LangGraph orchestration, typed shared state, deterministic JSON-schema-constrained generation, robust scraper error handling, artifact exports (`output/ads`, `output/reports`, `output/concepts`), and human-in-the-loop approval before publish.
 - **Communication**: The Streamlit review UI presents raw scraped evidence, pattern summaries, and generated concepts in one place, making trade-offs visible to non-technical stakeholders. The README documents setup, architecture, and outputs in plain language.
