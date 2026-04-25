@@ -22,7 +22,7 @@ flowchart TD
     approval -->|Rejected — new scrape| scraper
 ```
 
-### What you can show as “real output”
+### “Real output”
 - **Raw scraped ads**: exported to `output/ads/` per run (JSON)
 - **Pattern report**: exported to `output/reports/` (JSON + Markdown)
 - **Generated concepts**: exported to `output/concepts/` (JSON)
