@@ -7,6 +7,7 @@ concepts. Generates 3 variants per top winning pattern.
 
 import json
 import os
+import time
 from pathlib import Path
 
 from google import genai
@@ -17,6 +18,8 @@ from graph.state import AgentState
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
 CONCEPTS_DIR = Path(__file__).parent.parent.parent / "output" / "concepts"
 CONCEPTS_DIR.mkdir(parents=True, exist_ok=True)
+AB_TESTS_DIR = Path(__file__).parent.parent.parent / "output" / "ab_tests"
+AB_TESTS_DIR.mkdir(parents=True, exist_ok=True)
 DITTO_ASSETS_DIR = Path(__file__).parent.parent.parent / "data" / "ditto_assets"
 
 # Generate 3 variants × top N patterns
@@ -185,11 +188,100 @@ def _call_gemini(system_prompt: str, user_message: str) -> list[dict]:
 
 def _save_concepts(concepts: list[dict], iteration: int) -> None:
     """Persist concepts to disk for audit trail."""
-    import time
     timestamp = int(time.time())
     path = CONCEPTS_DIR / f"concepts_iter{iteration}_{timestamp}.json"
     path.write_text(json.dumps(concepts, indent=2))
     print(f"[Generator] Concepts saved → {path}")
+
+
+def _export_ab_test_plan(concepts: list[dict], iteration: int, insights: dict) -> None:
+    """
+    Export a structured A/B testing plan artifact (JSON + Markdown).
+
+    This is intentionally non-invasive: no serving/execution logic, only a repeatable
+    test plan object the team can run in Ads Manager.
+    """
+    if not concepts:
+        return
+
+    timestamp = int(time.time())
+    plan_id = f"DITTO_AB_iter{iteration}_{timestamp}"
+
+    # Sort by confidence and use highest-confidence concept as control.
+    sorted_concepts = sorted(
+        concepts, key=lambda c: float(c.get("confidence_score", 0.0)), reverse=True
+    )
+    control = sorted_concepts[0]
+    treatments = sorted_concepts[1:5]
+    if not treatments:
+        return
+
+    plan = {
+        "test_id": plan_id,
+        "iteration": iteration,
+        "objective": "Validate winning hook/emotion patterns against DITTO audience",
+        "kpis": {
+            "primary": "CTR",
+            "secondary": ["CVR", "CPC", "CPA"],
+            "min_detectable_lift_ctr_pct": 10,
+        },
+        "budget_split_pct": {
+            "control": round(100 / (1 + len(treatments)), 2),
+            "each_treatment": round(100 / (1 + len(treatments)), 2),
+        },
+        "recommended_runtime_days": 7,
+        "decision_rules": {
+            "scale_if": "CTR lift >= 10% vs control and CPA <= control",
+            "iterate_if": "CTR lift between 0% and 10% with better CVR",
+            "kill_if": "CTR below control by >= 10% after day 3",
+        },
+        "control": {
+            "concept_id": control.get("concept_id"),
+            "hook": control.get("hook"),
+            "target_emotion": control.get("target_emotion"),
+            "hypothesis": control.get("a_b_test_hypothesis"),
+        },
+        "treatments": [
+            {
+                "concept_id": c.get("concept_id"),
+                "hook": c.get("hook"),
+                "target_emotion": c.get("target_emotion"),
+                "hypothesis": c.get("a_b_test_hypothesis"),
+            }
+            for c in treatments
+        ],
+        "winning_patterns_source": insights.get("winning_patterns", []),
+    }
+
+    json_path = AB_TESTS_DIR / f"ab_test_plan_iter{iteration}_{timestamp}.json"
+    json_path.write_text(json.dumps(plan, indent=2))
+
+    md_lines = [
+        f"# A/B Test Plan — {plan_id}",
+        "",
+        f"- Iteration: `{iteration}`",
+        f"- Primary KPI: `{plan['kpis']['primary']}`",
+        f"- Secondary KPIs: `{', '.join(plan['kpis']['secondary'])}`",
+        f"- Runtime: **{plan['recommended_runtime_days']} days**",
+        "",
+        "## Control",
+        f"- `{plan['control']['concept_id']}` — {plan['control']['hook']}",
+        "",
+        "## Treatments",
+    ]
+    for t in plan["treatments"]:
+        md_lines.append(f"- `{t['concept_id']}` — {t['hook']}")
+    md_lines += [
+        "",
+        "## Decision Rules",
+        f"- Scale: {plan['decision_rules']['scale_if']}",
+        f"- Iterate: {plan['decision_rules']['iterate_if']}",
+        f"- Kill: {plan['decision_rules']['kill_if']}",
+        "",
+    ]
+    md_path = AB_TESTS_DIR / f"ab_test_plan_iter{iteration}_{timestamp}.md"
+    md_path.write_text("\n".join(md_lines))
+    print(f"[Generator] A/B test plan saved → {json_path}")
 
 
 def generator_node(state: AgentState) -> dict:
@@ -227,6 +319,7 @@ def generator_node(state: AgentState) -> dict:
         print(f"  [{c.get('concept_id', '?')}] hook: {c.get('hook', '')[:60]}...")
 
     _save_concepts(concepts, iteration)
+    _export_ab_test_plan(concepts, iteration, insights)
 
     return {
         "generated_concepts": concepts,
