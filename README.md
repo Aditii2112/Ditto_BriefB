@@ -26,6 +26,7 @@ flowchart TD
 - **Raw scraped ads**: exported to `output/ads/` per run (JSON)
 - **Pattern report**: exported to `output/reports/` (JSON + Markdown)
 - **Generated concepts**: exported to `output/concepts/` (JSON)
+- **A/B test plan**: exported to `output/ab_tests/` (JSON + Markdown)
 - **Review UI**: Streamlit review screen (concept cards + scraper sample table)
 
 ### Setup
@@ -56,6 +57,29 @@ streamlit run main.py
 ```
 
 Open the app at the local URL (Streamlit prints it in the terminal), then click **Start Pipeline**.
+
+### How to read the A/B test plan
+
+Each run exports an A/B plan (for example: `output/ab_tests/ab_test_plan_iter1_*.json`) with:
+- `test_id`: unique ID for tracking that test cycle
+- `control`: the baseline concept to beat
+- `treatments`: challenger concepts tested against control
+- `kpis`: primary and secondary success metrics (CTR primary; CVR/CPC/CPA secondary)
+- `budget_split_pct`: recommended spend split across control and treatments
+- `recommended_runtime_days`: suggested minimum run window before decisions
+- `decision_rules`: clear scale / iterate / kill logic
+
+Plain-English interpretation:
+- **Scale**: when a treatment beats control on CTR and keeps CPA healthy
+- **Iterate**: when signal is promising but not decisive
+- **Kill**: when treatment clearly underperforms
+
+Confidence concepts (alpha / beta), simplified:
+- **Alpha (Type I error)**: chance of calling a winner when it is not actually better (false positive)
+- **Beta (Type II error)**: chance of missing a real winner (false negative)
+- **Power = 1 - beta**: chance of detecting a true winner if it exists
+
+This project currently exports a **structured decision framework** for A/B operations; statistical significance checks (alpha/beta-powered stop rules) are the next production enhancement.
 
 ### Ground generation with DITTO product images (optional)
 
